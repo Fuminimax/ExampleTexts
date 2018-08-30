@@ -1,0 +1,196 @@
+<h2>画像投稿できるようにしよう！</h2>
+<p>現在はテキストのみ投稿可能な状態ですが、ここに画像が投稿できる機能を追加します。</p>
+<p>今回、画像投稿機能を実装する際に「gem（ジェム）」というツールを使って機能を追加していきます。</p>
+<h3>ここで行う作業</h3>
+<ul>
+  <li>gemについて</li>
+  <li>gem ‘refile’ の追加</li>
+  <li>image_idカラムの追加</li>
+  <li>refile用にコードを書き足す</li>
+  <li>フォームに画像投稿用の項目を追加</li>
+</ul>
+<p>新しいツールを使うのでしっかり覚えましょう。</p>
+<h2>gemについて</h2>
+<p>gemとは簡単に言うと「よく使う機能をまとめたもの」です。</p>
+<p>今回のように画像投稿機能だけでなく、認証機能（ログインなど）であったり、そもそも Ruby on Rails 自体もgemだったりします。</p>
+<p>自分で1から開発していると時間が掛かってしまう機能がgemを使うことで時間の短縮ができ、開発の効率が上がります。</p>
+<h2>gem refile</h2>
+<p>画像投稿をするときによく使うgemはいくつかあるのですが、その中でも今回は「refile」というgemを使用します。</p>
+<p>メリットとしては、</p>
+<ul>
+  <li>ファイルのアップロード先をファイルシステム・S3など設定できる</li>
+  <li>簡単に組み込める</li>
+  <li>画像のサムネイルを生成できる</li>
+</ul>
+<p>などが挙げられます。</p>
+<h3>gemの追加</h3>
+<p>gem を使用するためには、「Gemfile」というファイルの中に使用したいgemを追加する必要があります。</p>
+<p>「refile」を使用する場合、Gemfileに以下のものを追加します。</p>
+<span class="code-title">Gemfile</span>
+<pre class="prettyprint linenums lang-rb">gem "refile", require: "refile/rails", github: 'manfe/refile'</pre>
+<p><br>さらに加えて「画像加工用（サイズ調整など）」のgemも同時に追加します。
+  <br>画像加工用のgemを追加するコードは以下のとおりです
+</p>
+<span class="code-title">Gemfile</span>
+<pre class="prettyprint linenums lang-html">gem "refile-mini_magick"</pre>
+<h3>
+  <br>Gemfileへ追加
+</h3>
+<p>Gemfileの2行目以下に、今回使うgemを追加します。&nbsp;</p>
+<span class="code-title">Gemfile</span>
+<pre class="prettyprint linenums lang-ruby">:
+# 画像投稿用gem
+gem "refile", require: "refile/rails", github: 'manfe/refile'
+# 画像加工用（サイズ調整など）gem
+gem "refile-mini_magick"
+
+:
+:&nbsp;</pre><img src="http://web-camp.online/uploads/contents/142/img1.png" style=""><br><h2>Imagemagickをインストール
+</h2>
+<p>
+  refileを使用する際に必要なツールを読み込みます。<br>
+  ターミナルで以下のコマンドを実行してください。
+</p>
+<pre class="prettyprint linenums">$ sudo apt-get update
+$ sudo apt-get -y install imagemagick libmagick++-dev</pre>
+
+<h3>bundle install</h3>
+<p>Gemfileに新しく追加した時はgemを読み込むためにbundle installというコマンドを実行します。</p>
+<p>このコマンドを実行してようやくgemが使えるようになります。</p>
+<pre class="prettyprint linenums">$ bundle install</pre>
+<p><br>成功すると以下の画面になります。<br><br><img src="http://web-camp.online/uploads/contents/142/img2.png" style=""><br><br><img src="http://web-camp.online/uploads/contents/142/img3.png" style=""><br><br></p>
+<p>読み込めなかった時は以下のように警告が出ます。<br><br><img src="http://web-camp.online/uploads/contents/142/img4.png" style=""><br><img src="http://web-camp.online/uploads/contents/142/img5.png" style=""><br></p>
+<br><h2>image_idカラムの追加</h2>
+<p>画像を保存するカラムがないと保存できないので、Postに新しくカラムを追加します。カラムの名前はrefileの使い方に習って後ろに_idをつけないといけないので「image_id」とします</p>
+<p>カラムを追加するマイグレーションファイルを作成してDBに変更を加えます。データ型はstringです。</p>
+<pre class="prettyprint linenums">$ rails g migration add_image_id_to_posts image_id:string</pre>
+<p><br>問題なく実行できると以下のようになります。<br><br><img src="http://web-camp.online/uploads/contents/142/img6.png" style=""></p><p><br>間違ってファイルを作成してしまったらrails g xxx の「g」の部分を「d」(=delete)に変更することで削除できます<br></p>
+<p>マイグレーションファイルが作成できたらマイグレーションを実行してDBへ反映します。</p>
+<pre class="prettyprint linenums">$ rake db:migrate</pre>
+<img src="http://web-camp.online/uploads/contents/142/img7.png" style=""><br><br><br><h2>attachmentメソッドの追加</h2>
+<p>refileを使うときにはモデルにattachmentメソッドを追加します。Postモデルに追加します。</p>
+<span class="code-title">app/models/post.rb</span>
+<pre class="prettyprint linenums lang-rb">class Post &lt; ActiveRecord::Base
+&nbsp;&nbsp;&nbsp;&nbsp;attachment :image
+end</pre>
+<h3>
+  <br>ストロングパラメータへの追加
+</h3>
+<p>PostsControllerのストロングパラメータにimageカラムを追加します。</p>
+<span class="code-title">app/controllers/posts_controller.rb</span>
+<pre class="prettyprint linenums lang-rb" l="">class PostsController &lt; ApplicationController
+&nbsp;&nbsp;def new
+&nbsp;&nbsp;&nbsp;&nbsp;@post = Post.new
+  end
+  def create
+&nbsp;&nbsp;&nbsp;&nbsp;post = Post.new(post_params)
+&nbsp;&nbsp;&nbsp;&nbsp;post.save
+&nbsp;&nbsp;&nbsp;&nbsp;redirect_to post_path(post.id)
+  end
+  def index
+&nbsp;&nbsp;&nbsp;&nbsp;@posts = Post.all
+  end
+  def show
+&nbsp;&nbsp;&nbsp;&nbsp;@post = Post.find(params[:id])
+&nbsp;&nbsp;end
+  def edit
+&nbsp;&nbsp;&nbsp;&nbsp;@post = Post.find(params[:id])
+&nbsp;&nbsp;end
+  def update
+&nbsp;&nbsp;&nbsp;&nbsp;post = Post.find(params[:id])
+&nbsp;&nbsp;&nbsp;&nbsp;post.update(post_params)
+&nbsp;&nbsp;&nbsp;&nbsp;redirect_to post_path(post.id)
+  end
+&nbsp;
+private
+  def post_params
+<span class="highlight">&nbsp;&nbsp;&nbsp;&nbsp;params.require(:post).permit(:title, :body, :image)</span>
+  end
+end</pre>
+<h2>
+  <br>画像を投稿するフォームにファイル添付フィールドを付ける
+</h2>
+<p>投稿フォームに画像投稿フォームを追加します。</p>
+<span class="code-title">app/views/posts/new.html.erb</span>
+<pre class="prettyprint linenums lang-html">&lt;h1&gt;新規投稿&lt;/h1&gt;
+&lt;!-- form_for部分 --&gt;
+&lt;%= form_for(@post) do |f| %&gt;
+&nbsp;
+  &lt;h4&gt;タイトル&lt;/h4&gt;
+  &lt;%= f.text_field :title %&gt;
+
+  &lt;h4&gt;本文&lt;/h4&gt;
+  &lt;%= f.text_area :body %&gt;
+
+  &lt;!-- 追加部分 --&gt;
+  &lt;h4&gt;画像&lt;/h4&gt;
+  &lt;%= f.attachment_field :image%&gt;
+
+  &lt;%= f.submit '投稿' %&gt;
+
+&lt;% end %&gt;</pre>
+<h2>
+  <br>ビューで画像を表示する箇所にattachment_image_tagを埋め込む
+</h2>
+<p>一覧画面と詳細画面で画像を表示します。
+  <br>そのため、該当箇所にattachment_image_tagを埋め込みます。
+</p>
+<h3>一覧画面（index）</h3>
+<span class="code-title">app/views/posts/index.html.erb</span>
+<pre class="prettyprint linenums lang-html">&lt;h1&gt;投稿一覧&lt;/h1&gt;
+&lt;% @posts.each do |post| %&gt;
+  &lt;p&gt;タイトル&lt;/p&gt;
+  &lt;span&gt;
+    &lt;%=link_to post.title, post_path(post.id) %&gt;
+  &lt;/span&gt;
+  &lt;p&gt;画像&lt;/p&gt;
+  &lt;%= attachment_image_tag post, :image, :fill, 100, 100, format: 'jpeg' %&gt;
+&lt;% end %&gt;</pre>
+<p><br>ここはgem特有の書き方なので覚えましょう！</p>
+<h3>詳細ページ（show）</h3>
+<span class="code-title">app/views/posts/show.html.erb</span>
+<pre class="prettyprint linenums lang-html">&lt;h2&gt;タイトル&lt;/h2&gt;
+&lt;p&gt;&lt;%= @post.title %&gt;&lt;/p&gt;
+&lt;h2&gt;本文&lt;/h2&gt;
+&lt;p&gt;&lt;%= @post.body %&gt;&lt;/p&gt;
+&lt;h2&gt;画像&lt;/h2&gt;
+&lt;%= attachment_image_tag @post, :image, :fill, 300, 300, format: 'jpeg' %&gt;
+
+&lt;%= link_to "編集", edit_post_path(@post) %&gt;</pre>
+<p><br>以上で画像投稿の実装は完了なので動作確認をしましょう。&nbsp;</p>
+<p></p><pre class="prettyprint linenums"><i>$ rails s </i></pre><br>でサーバを立ち上げ、
+<p></p>
+<p>
+  <a href="http://localhost:3000/posts/new" target="_blank">http://localhost:3000/posts/new</a>
+</p>
+<p>へアクセスして画像投稿して表示されるか確認しましょう。<br>
+</p>
+<p>
+※画像サイズが大きすぎると（10MB以上）表示されない場合があります。
+今回はサンプル画像を用意致しましたので以下の画像をクリックし、ダウンロードして投稿させてみましょう。<br>
+  <a href="https://wals.s3.amazonaws.com/uploads/142/142_refileDownloadImage.png" download="rails.png"><img style="width:20%;" src="https://wals.s3.amazonaws.com/uploads/142/142_refileDownloadImage.png" alt="サンプル画像"></a>
+</p>
+<img src="http://web-camp.online/uploads/contents/142/img8.png" style=""><br><br><p></p>
+<p>問題なく実装できていると以下の画像のようになります。<br><img src="http://web-camp.online/uploads/contents/142/img9.png" style=""><br></p>
+<h2>確認問題</h2>
+<h3>問１</h3>
+<p>gemについて間違っているもの以下からを選んでください。</p>
+
+<p>
+a.gemとは簡単に言うと「よく使う機能をまとめたもの」である。<br>
+b.gem を使用するためには、「Gemfile」というファイルの中に使用したいgemを追加する必要がある。<br>
+c.Gemfileへの書き方は「gem gem名」である。<br>
+d.Gemfileに新しく追加した時はgemを読み込むためにbundle installというコマンドを実行する必要がある。 <br>
+</p>
+
+<h3>問2</h3>
+<p>カラムの追加について合っているものを以下から選んでください。</p>
+
+<p>
+a.カラムを追加するコマンドは、「rails g migraiton add_カラム名_to_テーブル名　カラム名 :データ型」である。<br>
+b.カラムを追加するコマンドは、同じカラム名がテーブル上、すでに存在していても作ることができる。<br>
+c.カラムを追加するコマンドは、テーブルが存在していない場合、自動的にテーブルも作ってくれる。<br>
+d.「rails g migration add_カラム名_to_テーブル名 カラム名:データ型」を実行するだけで、すぐにカラムが追加される。<br>
+</p>
+
+<a href="https://wals.s3.amazonaws.com/uploads/study_confirm/21/142/content.html" target="_blank">【解答はこちら】</a>
