@@ -1,0 +1,14 @@
+{"webhook": 
+  {"name": "my-webhook",
+   "targetPipeline": "testPipeline",
+   "targetAction": "Source",
+   "filters": [
+    {
+      "jsonPath": "$.ref", 
+      "matchEquals": "refs/heads/{Branch}"
+    }
+   ],
+   "authentication": "GITHUB_HMAC",
+   "authenticationConfiguration": {"SecretToken":"3de63893ddd25d853f417c0ddafe858a07fb76cd"}
+  }
+}
